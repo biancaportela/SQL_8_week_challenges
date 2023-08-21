@@ -66,6 +66,7 @@ A tabela de vendas (`sales`) registra todas as compras ao nível do `customer_id
 
 <details>
   <summary>menu</summary>
+
 A tabela de menu faz a correspondência do `product_id` com o nome real do produto (`product_name`) e o preço (`price`) de cada item do menu.
 
 | product_id | product_name | price |
@@ -79,6 +80,7 @@ A tabela de menu faz a correspondência do `product_id` com o nome real do produ
 
 <details>
   <summary>members</summary>
+
 A tabela final de membros registra a data de adesão (`join_date`) quando um `customer_id` ingressou na versão beta do programa de fidelidade do Diner do Danny.
 
 | customer_id | join_date  |
