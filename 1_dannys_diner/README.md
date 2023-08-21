@@ -1,6 +1,7 @@
 # 1 - Danny's Diner
-
-![header](https://8weeksqlchallenge.com/images/case-study-designs/1.png)
+<div style="text-align:center">
+<img src="https://8weeksqlchallenge.com/images/case-study-designs/1.png" alt="Descrição da Imagem" width="350" height="350">
+</div>
 
 - O case original pode ser encontrado [aqui](https://8weeksqlchallenge.com/case-study-1/).
 
@@ -26,7 +27,7 @@ O repositório contém três conjuntos de dados cruciais:
 
 Você pode inspecionar o diagrama de relacionamento de entidades e os dados de exemplo abaixo.
 
-![schema]()
+![schema](https://github.com/biancaportela/SQL_8_week_challenges/blob/main/imagens/schema_dannys_dinner.png?raw=true)
 
 
 
