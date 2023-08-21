@@ -1,7 +1,7 @@
 # 1 - Danny's Diner
-<div style="text-align:center">
+<p align="center">
 <img src="https://8weeksqlchallenge.com/images/case-study-designs/1.png" alt="Descrição da Imagem" width="350" height="350">
-</div>
+
 
 - O case original pode ser encontrado [aqui](https://8weeksqlchallenge.com/case-study-1/).
 
