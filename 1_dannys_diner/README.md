@@ -1,4 +1,4 @@
-# 1 - Danny's Diner
+# 🍜  Danny's Diner
 <p align="center">
 <img src="https://8weeksqlchallenge.com/images/case-study-designs/1.png" alt="header" width="350" height="350">
 
@@ -91,5 +91,24 @@ A tabela final de membros registra a data de adesão (`join_date`) quando um `cu
 </details>
 
 
+## 🚀 Case Study Questions
 
+**1. Qual é o valor total que cada cliente gastou no restaurante?**
 
+**2. Quantos dias cada cliente visitou o restaurante?**
+
+**3. Qual foi o primeiro item do menu comprado por cada cliente?**
+
+**4. Qual é o item mais comprado no menu e quantas vezes foi comprado por todos os clientes?**
+
+**5. Qual item foi o mais popular para cada cliente?**
+
+**6. Qual item foi comprado primeiro pelo cliente após ele se tornar membro?**
+
+**7. Qual item foi comprado logo antes de o cliente se tornar membro?**
+
+**8. Qual é o total de itens e valor gasto para cada membro antes de se tornarem membros?**
+
+**9. Se cada $1 gasto equivale a 10 pontos e o sushi tem um multiplicador de pontos de 2x - quantos pontos cada cliente teria?**
+
+**10. Na primeira semana após um cliente aderir ao programa (incluindo a data de adesão), eles ganham 2x pontos em todos os itens, não apenas no sushi - quantos pontos os clientes A e B têm no final de janeiro?**
