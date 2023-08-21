@@ -95,6 +95,33 @@ A tabela final de membros registra a data de adesão (`join_date`) quando um `cu
 
 **1. Qual é o valor total que cada cliente gastou no restaurante?**
 
+```sql
+SELECT 
+  sales.customer_id, 
+  SUM(menu.price) AS total_amount
+FROM dannys_diner.sales sales
+LEFT JOIN dannys_diner.menu menu
+ON sales.product_id = menu.product_id
+GROUP BY sales.customer_id
+ORDER BY total_amount DESC;
+
+```
+**Resposta**
+| customer_id | total_amount |
+|-------------|--------------|
+| A           | 76           |
+| B           | 74           |
+| C           | 36           |
+
+Os passos utilizados foram:
+- Selecionei `sales.customer_id` e `SUM(menu.price) `para obter o valor total gasto por cliente.
+
+- Usei **LEFT JOIN** para combinar dados das tabelas `sales` e `menu` usando `product_id`.
+
+- Utilizei **GROUP BY** com `customer_id` para calcular a soma por cliente.
+
+- Ordenei os resultados pelo valor total em ordem decrescente usando **ORDER BY** `total_amount` em ordem do cliente que mais comprou para o que menos comprou.
+
 **2. Quantos dias cada cliente visitou o restaurante?**
 
 **3. Qual foi o primeiro item do menu comprado por cada cliente?**
