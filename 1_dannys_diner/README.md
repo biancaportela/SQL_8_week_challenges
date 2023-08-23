@@ -122,20 +122,246 @@ Os passos utilizados foram:
 
 - Ordenei os resultados pelo valor total em ordem decrescente usando **ORDER BY** `total_amount` em ordem do cliente que mais comprou para o que menos comprou.
 
+---
 **2. Quantos dias cada cliente visitou o restaurante?**
+
+```sql
+SELECT 
+	sales.customer_id,
+    COUNT(sales.order_date) AS dias_visitados
+FROM dannys_diner.sales 
+GROUP BY sales.customer_id
+ORDER BY sales.customer_id
+```
+| customer_id | dias_visitados |
+|-------------|----------------|
+| A           | 6              |
+| B           | 6              |
+| C           | 3              |
+
+Os passos feitos foram:
+- Usei a função de agregação **COUNT** para contar as entradas de cada cliente na tabela de vendas.
+- Agrupei os resultados pelo ID do cliente (`customer_id`) e ordenei-os em ordem alfabética para melhor leitura dos dados.
+---
 
 **3. Qual foi o primeiro item do menu comprado por cada cliente?**
 
+Minha primeira solução foi essa: 
+```sql
+SELECT
+    DISTINCT sales.customer_id,
+    FIRST_VALUE(menu.product_name) OVER (PARTITION BY sales.customer_id ORDER BY sales.order_date) b
+FROM dannys_diner.sales 
+LEFT JOIN dannys_diner.menu menu
+ON sales.product_id = menu.product_id
+```
+| customer_id | primeiro_item    |
+|-------------|-------|
+| A           | curry |
+| B           | curry |
+| C           | ramen |
+
+Os passos foram:
+- A consulta começa selecionando distintamente (sem duplicatas) os IDs dos clientes da tabela de vendas (`sales.customer_id`).
+
+- Em seguida, usei a função de janela **FIRST_VALUE** em conjunto com a cláusula **OVER** para calcular, para cada cliente, o primeiro item do menu que eles compraram, ordenado por data de pedido (`sales.order_date`), enquanto realizo um **LEFT JOIN** entre as tabelas de vendas e de menu usando o `product_id` correspondente.
+
+Na possibilidade de que um cliente tenha comprando dois itens na sua primeira compra utilizei outra window function
+
+```sql
+SELECT customer_id, product_name, order_date
+FROM (
+    SELECT
+        sales.customer_id,
+        menu.product_name,
+        sales.order_date,
+        RANK() OVER (PARTITION BY sales.customer_id ORDER BY sales.order_date) AS rank
+    FROM dannys_diner.sales 
+    LEFT JOIN dannys_diner.menu menu
+    ON sales.product_id = menu.product_id
+) ranked_data
+WHERE rank = 1;
+```
+
+| customer_id | product_name | order_date               |
+| ----------- | ------------ | ------------------------ |
+| A           | curry        | 2021-01-01T00:00:00.000Z |
+| A           | sushi        | 2021-01-01T00:00:00.000Z |
+| B           | curry        | 2021-01-01T00:00:00.000Z |
+| C           | ramen        | 2021-01-01T00:00:00.000Z |
+| C           | ramen        | 2021-01-01T00:00:00.000Z |
+
+
+
+
+Os passos foram:
+
+- Comecei o código selecionando a coluna `customer_id` e `product_name` de uma subconsulta.
+- Na subconsulta interna, usei a função de janela **RANK()** para atribuir um rank a cada combinação de `customer_id` e `product_name` com base na data de pedido.
+- A cláusula **PARTITION BY** `sales.customer_id` garante que o ranking seja reiniciado para cada cliente.
+- A consulta externa seleciona apenas as linhas da subconsulta interna onde o rank é igual a 1, ou seja, os primeiros itens de cada cliente.
+- Aqui vemos que a primeira compra de A foi um curry e um sushi e a primeira compra de C foram 2 ramens.
+---
+
 **4. Qual é o item mais comprado no menu e quantas vezes foi comprado por todos os clientes?**
+```sql
+SELECT  
+  menu.product_name,
+  COUNT(menu.product_name) AS num_compras
+FROM dannys_diner.sales
+LEFT JOIN dannys_diner.menu menu
+ON sales.product_id = menu.product_id
+GROUP BY menu.product_name
+LIMIT 1
+```
+| product_name | num_compras |
+|--------------|-------------|
+| ramen        | 8           |
+
+Os passos foram:
+
+- Selecionei o nome do produto da tabela `menu` e utilizei **COUNT** para contar quantas vezes cada produto foi comprado, renomeando a contagem como `num_compras`.
+
+- Combinei os dados das tabelas `sales` e `menu` com base na coluna `product_id`.
+
+- Agrupei os resultados pelo nome do produto.
+
+- Utilizei a função **LIMIT** para retornar apenas um resultado, representando o produto mais frequentemente comprado.
+---
 
 **5. Qual item foi o mais popular para cada cliente?**
+```sql
+SELECT customer_id, product_name, num_compras
+FROM (
+    SELECT
+          sales.customer_id,
+          menu.product_name,
+          COUNT(menu.product_name) AS num_compras,
+          RANK() OVER (PARTITION BY sales.customer_id ORDER BY COUNT(menu.product_name) DESC) AS rank
+      FROM dannys_diner.sales 
+      LEFT JOIN dannys_diner.menu menu
+      ON sales.product_id = menu.product_id
+  GROUP BY menu.product_name, sales.customer_id
+) ranked_data
+WHERE rank = 1;
+```
+| customer_id | product_name | num_compras |
+|-------------|--------------|-------------|
+| A           | ramen        | 3           |
+| B           | curry        | 2           |
+| B           | sushi        | 2           |
+| B           | ramen        | 2           |
+| C           | ramen        | 3           |
+
+Podemos ver na tabela que os clientes podem ter mais de uma refeição favorita. B, por exemplo,parece desfrutar de todos os itens do menu.
+
+Essa questão foi respondida de maneira similar à questão 3, utilizando uma função de janela. Os passos foram:
+
+- Calculei o número de compras de cada produto (`num_compras`) para cada cliente (`customer_id`).
+- Usei a função de janela **RANK()** para classificar as compras de cada cliente com base na contagem de produtos. 
+- A cláusula **PARTITION BY** divide os dados por cliente, a cláusula **ORDER BY** define a ordenação.
+- Ou seja: usei a função de classificação (**RANK**) para atribuir um ranking com base no número de compras de cada produto por cliente.
+- Filtrai a subconsulta usando **WHERE** `rank = 1` para selecionar apenas os produtos mais comprados por cada cliente.
+
+---
 
 **6. Qual item foi comprado primeiro pelo cliente após ele se tornar membro?**
 
+```sql
+WITH customer_first_orders AS (
+  SELECT 
+    s.customer_id, 
+    s.order_date, 
+    m.product_name,
+    m.price,
+    RANK() OVER (PARTITION BY s.customer_id ORDER BY s.order_date) AS rank
+  FROM dannys_diner.sales s
+  LEFT JOIN dannys_diner.menu m
+  ON s.product_id = m.product_id
+  LEFT JOIN dannys_diner.members mem
+  ON s.customer_id = mem.customer_id
+  WHERE mem.join_date IS NOT NULL AND s.order_date >= mem.join_date
+)
+
+SELECT customer_id, product_name
+FROM customer_first_orders
+WHERE rank = 1;
+```
+| customer_id | product_name |
+|-------------|--------------|
+| A           | curry        |
+| B           | sushi        |
+
+Os passos foram:
+
+- Usei uma expressão de tabela comum (Common Table Expression - CTE) chamada `customer_first_orders` para organizar a lógica da consulta interna.
+
+- Uni as tabelas `sales`, `menu` e `members` usando cláusulas LEFT JOIN.
+
+- A CTE seleciona informações sobre o primeiro pedido feito por cada cliente no restaurante utilizando uma função de janela.
+
+- Os pedidos são classificados por data de pedido para cada cliente e atribui um ranking.
+
+- A consulta final seleciona o `customer_id`, `product_name` e `price` da CTE onde o ranking é igual a 1, ou seja, o primeiro pedido de cada cliente após se tornarem membros.
+---
+
 **7. Qual item foi comprado logo antes de o cliente se tornar membro?**
+```sql
+WITH customer_last_order AS (
+  SELECT 
+      s.customer_id,
+      s.order_date,
+      m.product_name,
+      mem.join_date,
+      RANK() OVER (PARTITION BY s.customer_id ORDER BY s.order_date DESC) AS rank
+  FROM dannys_diner.sales s
+    LEFT JOIN dannys_diner.menu m
+    ON s.product_id = m.product_id
+    LEFT JOIN dannys_diner.members mem
+    ON s.customer_id = mem.customer_id
+  WHERE s.order_date < mem.join_date
+  )
+  
+  SELECT
+  	customer_id, product_name
+  FROM customer_last_order
+  WHERE rank = 1
+```
+
+Esse resultado foi obtido de maneira similar ao da questão 6,mas aqui invertemos o sinal para termos os últimos pedidos antes do cliente se tornar membro do clube de assinaturas.
+ 
+Os passos foram:
+
+- O código utiliza uma Expressão de Tabela Comum (CTE) chamada `customer_last_order` para obter informações sobre o último pedido feito por cada cliente antes de se tornarem membros.
+
+- Na CTE, uni a `tabela dannys_diner.sales` com as `tabelas dannys_diner.menu` e `dannys_diner.members` com base nos IDs dos clientes e dos produtos, e filtrei os registros em que a data do pedido é anterior à data de adesão do cliente.
+
+- A função de janela **RANK()** é aplicada dentro da CTE para atribuir uma classificação a cada linha dentro de uma partição de IDs de clientes, ordenada pela data do pedido em ordem decrescente.
+
+- A declaração final do SELECT recupera o ID do cliente e o nome do produto para as linhas na CTE `customer_last_order` em que a classificação é igual a 1. Isso corresponde ao último pedido feito por cada cliente antes de se tornarem membros do restaurante.
+---
 
 **8. Qual é o total de itens e valor gasto para cada membro antes de se tornarem membros?**
+```sql
+
+```
+
+Os passos foram:
+
+---
 
 **9. Se cada $1 gasto equivale a 10 pontos e o sushi tem um multiplicador de pontos de 2x - quantos pontos cada cliente teria?**
+```sql
+
+```
+
+Os passos foram:
+
+---
 
 **10. Na primeira semana após um cliente aderir ao programa (incluindo a data de adesão), eles ganham 2x pontos em todos os itens, não apenas no sushi - quantos pontos os clientes A e B têm no final de janeiro?**
+```sql
+
+```
+
+Os passos foram:
