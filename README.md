@@ -6,4 +6,6 @@ Este desafio é composto por 8 cases e tem como objetivo a construção de um po
 
 Saiba mais sobre o projeto [aqui](https://8weeksqlchallenge.com/).
 
+# 🚧 Este repositória está em construção
+
 ## Case 1 - Danny's Diner
