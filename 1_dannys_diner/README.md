@@ -343,25 +343,269 @@ Os passos foram:
 
 **8. Qual é o total de itens e valor gasto para cada membro antes de se tornarem membros?**
 ```sql
-
+SELECT 
+     s.customer_id,
+     m.product_name,
+     m.price
+ FROM dannys_diner.sales s
+    LEFT JOIN dannys_diner.menu m
+    ON s.product_id = m.product_id
+    LEFT JOIN dannys_diner.members mem
+    ON s.customer_id = mem.customer_id
+  WHERE s.order_date < mem.join_date)
+  
+  SELECT
+  	customer_id,
+    COUNT(product_name) AS total_compras,
+ 	SUM(price) AS receita_total
+ FROM itens
+ GROUP BY customer_id
 ```
 
-Os passos foram:
+| customer_id | total_compras | receita_total |
+|-------------|---------------|---------------|
+| B           | 3             | 40            |
+| A           | 2             | 25            |
+
+
+Ainda trabalhando com CTE e com dados antes dos cliente virarem membros temos que:
+
+- No primeiro trecho de código selecionei informações de vendas, incluindo o ID do cliente, o nome do produto e o preço do menu e separei as partições pelo cliente.
+
+- Realizei uma junção das tabelas de vendas, menu e membros com base nas correspondentes IDs de cliente e IDs de produto e impus a condição para selecionar apenas as vendas que ocorreram antes de um cliente se tornar membro.
+
+- O segundo trecho de código utiliza o resultado da primeira consulta (alias "itens") para calcular o total de compras (quantidade de produtos comprados) e a receita total (soma dos preços dos produtos) para cada cliente.
+
+- Com a CTE feita utilizei a função **COUNT** para contar os produtos e assim saber quantos produtos foram pedidos para cada cliente. Em  seguinda utilizei a função **SUM** para saber a quantidade gasta por cada cliente.
 
 ---
 
 **9. Se cada $1 gasto equivale a 10 pontos e o sushi tem um multiplicador de pontos de 2x - quantos pontos cada cliente teria?**
 ```sql
-
+WITH points AS(
+SELECT 
+     s.customer_id,
+     m.product_name,
+     SUM(CASE WHEN m.product_name <> 'sushi' THEN (m.price * 10) 
+              ELSE (m.price * 20) END) AS points
+ FROM dannys_diner.sales s
+    LEFT JOIN dannys_diner.menu m
+    ON s.product_id = m.product_id
+    LEFT JOIN dannys_diner.members mem
+    ON s.customer_id = mem.customer_id
+  GROUP BY m.product_name, s.customer_id
+  ORDER BY s.customer_id)
+  
+  SELECT
+  	customer_id,
+    SUM(points)
+ FROM points
+ GROUP BY customer_id
 ```
+customer_id | sum
+------------|-----
+A           | 860
+B           | 940
+C           | 360
 
 Os passos foram:
 
+- Novamente, utilizei uma estrutura de **CTE** que nomeei de "points" para calcular a pontuação total acumulada por cada cliente com base nas compras realizadas.
+- Selecionei o `customer_id` e o `product_name` da tabela de vendas e fiz um cálculo condicional usando uma cláusula **CASE**. Dependendo do nome do produto, a pontuação é multiplicada por 10 ou 20.
+
+- As tabelas de vendas, menu e membros são unidas usando as cláusulas **LEFT JOIN** para obter informações sobre os produtos comprados, seus preços e os membros associados aos clientes.
+O resultado é agrupado por `customer_id` e `product_name` e, em seguida, ordenado pelo `customer_id`. A soma das pontuações para cada cliente é calculada na subconsulta.
+
+- Finalmente, a segunda consulta é executada no CTE `points`, agrupando os resultados novamente pelo `customer_id` e somando as pontuações acumuladas para cada cliente, resultando na pontuação total de pontos acumulada por cliente.
 ---
 
 **10. Na primeira semana após um cliente aderir ao programa (incluindo a data de adesão), eles ganham 2x pontos em todos os itens, não apenas no sushi - quantos pontos os clientes A e B têm no final de janeiro?**
-```sql
 
+- Nesse caso temos 3 cenários diferentes. Para cada cenário eu fiz uma tabela temporária e a resposta final foi dada com a união das CTEs.
+
+- Nessa questão foram trabalhadas as funções de **DATE**, em particular a  **INTERVAL** que permitiu delimitar a primeira semana pós adesão do clube de membros e a **EXTRACT** que permitiu extrais apenas os dados referentes a janeiro.
+
+- Além disso, utilizei a função **UNION** para unir as CTEs.
+
+### Situação 1: Antes de ser membro
+
+**Hipóteses:**
+
+- cada $1 gasto equivale a 10 pontos 
+
+- o sushi tem um multiplicador de pontos de 2x
+
+```sql
+WITH pre_assinatura AS
+(SELECT 
+     s.customer_id,
+     m.product_name,
+     s.order_date,
+     mem.join_date,
+     SUM(CASE WHEN m.product_name <> 'sushi' THEN (m.price * 10) 
+              ELSE (m.price * 20) END) AS points
+ FROM dannys_diner.sales s
+    LEFT JOIN dannys_diner.menu m
+    ON s.product_id = m.product_id
+    LEFT JOIN dannys_diner.members mem
+    ON s.customer_id = mem.customer_id
+WHERE s.order_date < mem.join_date
+GROUP BY m.product_name, s.customer_id, s.order_date, mem.join_date
+ ORDER BY s.customer_id)
+ 
+ SELECT
+  	customer_id,
+    SUM(points) AS ponto_pre
+ FROM pre_assinatura
+ GROUP BY customer_id
 ```
 
-Os passos foram:
+customer_id | ponto_pre
+----------- | ---------
+A           | 350
+B           | 500
+
+### Situação 2: Primeira semana como membro
+
+**Hipóteses**
+
+- Cada $1 gasto normalmente equivale a 10 pontos. No entanto, quando um cliente adere ao programa e durante a primeira semana após a adesão (incluindo a data de adesão), todos os itens, incluindo o sushi, recebem um multiplicador de pontos de 2x. 
+- O sushi, durante a primeira semana de adesão, terá um multiplicador de pontos de 4x em vez de 2x, como os outros itens.
+
+```sql
+WITH primeira_semana AS
+(
+    SELECT 
+        s.customer_id,
+        m.product_name,
+        s.order_date,
+        mem.join_date,
+        SUM(CASE WHEN m.product_name <> 'sushi' THEN (m.price * 10 * 2) 
+                 ELSE (m.price * 20 * 2) END) AS points
+    FROM dannys_diner.sales s
+    LEFT JOIN dannys_diner.menu m
+    ON s.product_id = m.product_id
+    LEFT JOIN dannys_diner.members mem
+    ON s.customer_id = mem.customer_id
+    WHERE s.order_date >= mem.join_date 
+      AND s.order_date <= mem.join_date + INTERVAL '6 DAY'
+    GROUP BY m.product_name, s.customer_id, s.order_date, mem.join_date
+)
+ 
+SELECT
+    customer_id,
+    SUM(points) AS points
+FROM primeira_semana
+GROUP BY customer_id;
+```
+customer_id | points
+----------- | ------
+B           | 400
+A           | 1020
+
+
+### Situação 3: Restante do mês de janeiro
+**Hipótese**
+
+- Agora devemos calcular o restante do mês de janeiro, onde as condições de pontuação volta a ser as iniciais.
+
+
+```sql
+SELECT 
+        s.customer_id,
+        SUM(CASE WHEN m.product_name <> 'sushi' THEN (m.price * 10) 
+                 ELSE (m.price * 20) END) AS points
+    FROM dannys_diner.sales s
+    LEFT JOIN dannys_diner.menu m
+        ON s.product_id = m.product_id
+    LEFT JOIN dannys_diner.members mem
+        ON s.customer_id = mem.customer_id
+    WHERE s.order_date >= mem.join_date 
+      AND s.order_date > mem.join_date + INTERVAL '6 DAY'
+      AND EXTRACT(MONTH FROM s.order_date) = 1 
+    GROUP BY s.customer_id
+
+
+```
+customer_id | points
+----------- | ------
+B           | 120
+
+### Resultado final
+**Hipótese**
+
+- Juntando as 3 situações para ter o total de pontos dos membros ao final do mês de janeiro.
+
+```sql
+WITH pre_assinatura AS
+(
+    SELECT 
+        s.customer_id,
+        m.product_name,
+        s.order_date,
+        mem.join_date,
+        SUM(CASE WHEN m.product_name <> 'sushi' THEN (m.price * 10) 
+                 ELSE (m.price * 20) END) AS points
+    FROM dannys_diner.sales s
+    LEFT JOIN dannys_diner.menu m
+        ON s.product_id = m.product_id
+    LEFT JOIN dannys_diner.members mem
+        ON s.customer_id = mem.customer_id
+    WHERE s.order_date < mem.join_date
+    GROUP BY m.product_name, s.customer_id, s.order_date, mem.join_date
+    ORDER BY s.customer_id
+),
+primeira_semana AS
+(
+     SELECT 
+        s.customer_id,
+        m.product_name,
+        s.order_date,
+        mem.join_date,
+        SUM(CASE WHEN m.product_name <> 'sushi' THEN (m.price * 10* 2) 
+                 ELSE (m.price * 20 * 2) END) AS points
+    FROM dannys_diner.sales s
+    LEFT JOIN dannys_diner.menu m
+    ON s.product_id = m.product_id
+    LEFT JOIN dannys_diner.members mem
+    ON s.customer_id = mem.customer_id
+    WHERE s.order_date >= mem.join_date 
+      AND s.order_date <= mem.join_date + INTERVAL '6 DAY'
+    GROUP BY m.product_name, s.customer_id, s.order_date, mem.join_date
+    ORDER BY s.customer_id
+),
+restante_do_mes AS
+(
+    SELECT 
+        s.customer_id,
+        m.product_name,
+        s.order_date,
+        mem.join_date,
+        SUM(CASE WHEN m.product_name <> 'sushi' THEN (m.price * 10) 
+                 ELSE (m.price * 20) END) AS points
+    FROM dannys_diner.sales s
+    LEFT JOIN dannys_diner.menu m
+        ON s.product_id = m.product_id
+    LEFT JOIN dannys_diner.members mem
+        ON s.customer_id = mem.customer_id
+    WHERE s.order_date >= mem.join_date 
+      AND s.order_date > mem.join_date + INTERVAL '6 DAY'
+      AND EXTRACT(MONTH FROM s.order_date) = 1 
+    GROUP BY m.product_name, s.customer_id, s.order_date, mem.join_date
+)
+ 
+SELECT customer_id, SUM(points) AS ponto_total
+FROM (
+    SELECT * FROM pre_assinatura
+    UNION ALL
+    SELECT * FROM primeira_semana
+    UNION ALL
+    SELECT * FROM restante_do_mes
+) AS total_points
+GROUP BY customer_id;
+```
+
+customer_id | ponto_total
+------------|-------------
+A           | 1370
+B           | 1020
