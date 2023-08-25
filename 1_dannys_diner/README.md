@@ -5,6 +5,12 @@
 
 - O case original pode ser encontrado [aqui](https://8weeksqlchallenge.com/case-study-1/).
 
+## 📚 Sumário
+- [Introdução](#Introdução)
+- [O problema](#o-problema)
+- [Dados](#dados)
+- [Soluções](#case-study-questions)
+
 
 ## 📖 Introdução
 
@@ -609,3 +615,94 @@ customer_id | ponto_total
 ------------|-------------
 A           | 1370
 B           | 1020
+
+
+# Questões Bônus 
+
+## Junte todas as coisas
+
+Recrie a tabela com: `customer_id`, `order_date`, `product_name`, `price`, `member (Y/N)`
+
+
+```sql
+SELECT 
+	s.customer_id,
+    m.product_name,
+    m.price,
+    CASE WHEN mem.join_date <= s.order_date  THEN 'Y'
+    ELSE 'N' END AS is_member
+FROM dannys_diner.sales s
+LEFT JOIN  dannys_diner.menu m
+ON s.product_id = m.product_id
+LEFT JOIN dannys_diner.members mem
+ON s.customer_id = mem.customer_id
+ORDER BY customer_id, order_date ASC
+```
+
+| customer_id | product_name | price | is_member |
+|-------------|--------------|-------|-----------|
+| A           | sushi        | 10    | N         |
+| A           | curry        | 15    | N         |
+| A           | curry        | 15    | Y         |
+| A           | ramen        | 12    | Y         |
+| A           | ramen        | 12    | Y         |
+| A           | ramen        | 12    | Y         |
+| B           | curry        | 15    | N         |
+| B           | curry        | 15    | N         |
+| B           | sushi        | 10    | N         |
+| B           | sushi        | 10    | Y         |
+| B           | ramen        | 12    | Y         |
+| B           | ramen        | 12    | Y         |
+| C           | ramen        | 12    | N         |
+| C           | ramen        | 12    | N         |
+| C           | ramen        | 12    | N         |
+
+
+
+
+## Ranqueie todas as coisas
+
+Danny também precisa de mais informações sobre a classificação dos produtos dos clientes, mas ele não precisa intencionalmente da classificação para compras de não membros, portanto, ele espera valores de classificação nulos para os registros quando os clientes ainda não fazem parte do programa de fidelidade.
+
+```sql
+WITH tab_completa AS (
+SELECT 
+	s.customer_id,
+  	s.order_date,
+    m.product_name,
+    m.price,
+    CASE WHEN mem.join_date <= s.order_date  THEN 'Y'
+    ELSE 'N' END AS is_member
+FROM dannys_diner.sales s
+LEFT JOIN  dannys_diner.menu m
+ON s.product_id = m.product_id
+LEFT JOIN dannys_diner.members mem
+ON s.customer_id = mem.customer_id
+ORDER BY customer_id, order_date ASC
+
+)
+
+SELECT *,
+	CASE WHEN is_member = 'N' THEN null
+    ELSE RANK() OVER (PARTITION BY customer_id, is_member ORDER BY order_date ASC)
+    END AS rank
+FROM tab_completa
+```
+
+| customer_id | order_date            | product_name | price | is_member | rank |
+|-------------|-----------------------|--------------|-------|-----------|------|
+| A           | 2021-01-01T00:00:00.000Z | sushi        | 10    | N         | null |
+| A           | 2021-01-01T00:00:00.000Z | curry        | 15    | N         | null |
+| A           | 2021-01-07T00:00:00.000Z | curry        | 15    | Y         | 1    |
+| A           | 2021-01-10T00:00:00.000Z | ramen        | 12    | Y         | 2    |
+| A           | 2021-01-11T00:00:00.000Z | ramen        | 12    | Y         | 3    |
+| A           | 2021-01-11T00:00:00.000Z | ramen        | 12    | Y         | 3    |
+| B           | 2021-01-01T00:00:00.000Z | curry        | 15    | N         | null |
+| B           | 2021-01-02T00:00:00.000Z | curry        | 15    | N         | null |
+| B           | 2021-01-04T00:00:00.000Z | sushi        | 10    | N         | null |
+| B           | 2021-01-11T00:00:00.000Z | sushi        | 10    | Y         | 1    |
+| B           | 2021-01-16T00:00:00.000Z | ramen        | 12    | Y         | 2    |
+| B           | 2021-02-01T00:00:00.000Z | ramen        | 12    | Y         | 3    |
+| C           | 2021-01-01T00:00:00.000Z | ramen        | 12    | N         | null |
+| C           | 2021-01-01T00:00:00.000Z | ramen        | 12    | N         | null |
+| C           | 2021-01-07T00:00:00.000Z | ramen        | 12    | N         | null |
