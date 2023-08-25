@@ -6,7 +6,7 @@ Este desafio é composto por 8 cases e tem como objetivo a construção de um po
 
 Saiba mais sobre o projeto [aqui](https://8weeksqlchallenge.com/).
 
-
+As queries foram feitas utilizando PostgreSQL no site [DB Fiddle](https://www.db-fiddle.com).
 
 ## Case 1 - Danny's Diner
 <p align="center">
