@@ -6,10 +6,10 @@
 - O case original pode ser encontrado [aqui](https://8weeksqlchallenge.com/case-study-1/).
 
 ## 📚 Sumário
-- [Introdução](#Introdução)
-- [O problema](#o-problema)
-- [Dados](#dados)
-- [Soluções](#case-study-questions)
+- [Introdução](#📖-introdução)
+- [O problema](#📖-o-problema)
+- [Dados](#📖-dados)
+- [Soluções](#🚀-case-study-questions)
 
 
 ## 📖 Introdução
