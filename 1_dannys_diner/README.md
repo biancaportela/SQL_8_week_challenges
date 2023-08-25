@@ -6,24 +6,24 @@
 - O case original pode ser encontrado [aqui](https://8weeksqlchallenge.com/case-study-1/).
 
 ## 📚 Sumário
-- [Introdução](#📖-introdução)
-- [O problema](#📖-o-problema)
-- [Dados](#📖-dados)
-- [Soluções](#🚀-case-study-questions)
+- [Introdução](#introdução)
+- [O problema](#o-problema)
+- [Dados](#dados)
+- [Soluções](#case-study-questions)
 
 
-## 📖 Introdução
+## Introdução
 
 Neste repositório, acompanhamos a jornada de Danny, um apaixonado por comida japonesa, que abriu um charmoso restaurante no início de 2021, servindo seus pratos favoritos: sushi, curry e ramen.
 
 
-## 📖 O problema
+## O problema
 
 O restaurante, chamado "Diner's Danny", busca ajuda para transformar os dados coletados durante seus primeiros meses de operação em insights úteis. O objetivo é responder perguntas simples sobre os clientes, como padrões de visita, gastos e pratos favoritos. Isso permitirá uma conexão mais profunda com os clientes, resultando em experiências personalizadas e aprimoradas.
 
 Danny também planeja usar esses insights para tomar decisões, como expandir o programa de fidelidade. Além disso, ele precisa criar conjuntos de dados simples para sua equipe analisar, sem a necessidade de conhecimento em SQL.
 
-## 📖 Dados
+## Dados
 
 O repositório contém três conjuntos de dados cruciais:
 
@@ -97,7 +97,7 @@ A tabela final de membros registra a data de adesão (`join_date`) quando um `cu
 </details>
 
 
-## 🚀 Case Study Questions
+## Case Study Questions
 
 **1. Qual é o valor total que cada cliente gastou no restaurante?**
 
