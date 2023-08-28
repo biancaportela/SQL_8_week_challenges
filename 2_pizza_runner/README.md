@@ -5,22 +5,28 @@
 
 - O case original pode ser encontrado [aqui](https://8weeksqlchallenge.com/case-study-2/).
 
-## 📚 Sumário
+# 📚 Sumário
 - [Introdução](#introdução)
 - [O problema](#o-problema)
 - [Dados](#dados)
 - [Soluções](#case-study-questions)
+    - [Data Preprocessing](#data-preprocessing)
+    - [Métricas das pizzas](#métricas-das-pizzas)
+    - [Experiência do usuário e do entregador](#experiência-do-usuário-e-do-entregador)
+    - [Otimização dos igredientes utilizados](#otimização-dos-igredientes-utilizados)
+    - [Precificação e avaliações](#precificação-e-avaliações)
+    - [Perguntas adicionais](#perguntas-adicionais)
 
-## Introdução
+# Introdução
 Com o objetivo de expandir sua pizzaria, Danny adotou uma abordagem inovadora ao lançar o Pizza Runner. Nesse empreendimento, ele recrutou uma equipe de entregadores para levar pizzas frescas diretamente aos clientes e também contratou desenvolvedores para criar um aplicativo móvel, permitindo aos clientes fazerem seus pedidos de forma conveniente e eficiente.
 
-## O problema
+# O problema
 
 Devido à experiência de Danny como cientista de dados, ele estava bem ciente de que a coleta de dados seria fundamental para o crescimento de seu negócio.
 
 Ele preparou para nós um diagrama de relacionamento de entidades do seu design de banco de dados, mas necessita de assistência adicional para limpar seus dados e aplicar alguns cálculos básicos, a fim de orientar melhor seus entregadores e otimizar as operações do Pizza Runner.
 
-## Dados
+# Dados
 
 Danny compartilhou 6 datasets para o estudo de caso, sendo eles
 
@@ -152,3 +158,162 @@ Esta tabela contém todos os valores de nome de sabores juntamente com seus resp
 
 
 </details>
+
+## Soluções
+
+Este estudo de caso apresenta uma série de etapas interligadas.
+
+A primeira delas está focada na limpeza e preparação dos dados. Posteriormente, são abordadas questões relacionadas às métricas das pizzas, experiência tanto do usuário quanto do entregador, otimização dos ingredientes, precificação e avaliações, além das perguntas adicionais.
+
+---
+
+## Data Preprocessing
+
+Danny nos informou que alguma das tabelas precisam de uma limpeza prévias, antes de começar as análises.
+
+Os problemas com as tabelas envolvem:
+
+- Correção de dados faltantes: 
+    -  os valores `null` estão imputados como texto.
+    -  há tanto `null` quanto `NA` para indicar dados faltantes.
+
+- As unidades de distância e de minutagem foram imputadas manualmente e precisam ser corrigidas.
+
+
+### Tabela `customer_orders`
+
+- Correção de dados faltantes: 
+    -  os valores `null` estão imputados como texto.
+    -  há tanto `null` quanto `NA` para indicar dados faltantes.
+
+```sql
+CREATE TEMP TABLE customer_orders_temp AS
+  SELECT
+      order_id,
+      customer_id,
+      pizza_id,
+      CASE WHEN exclusions = 'null' THEN ' '
+      ELSE exclusions END AS exclusions,
+      CASE WHEN extras = 'null' OR extras IS NULL THEN ' '
+      ELSE extras END AS extras,
+      order_time
+  FROM pizza_runner.customer_orders;
+
+```
+
+Os resultados da tabela limpos estão aqui:
+<details>
+  <summary>customer_orders_temp</summary>
+
+| order_id | customer_id | pizza_id | exclusions | extras | order_time               |
+|----------|-------------|----------|------------|--------|-------------------------|
+| 1        | 101         | 1        |            |        | 2020-01-01T18:05:02.000Z|
+| 2        | 101         | 1        |            |        | 2020-01-01T19:00:52.000Z|
+| 3        | 102         | 1        |            |        | 2020-01-02T23:51:23.000Z|
+| 3        | 102         | 2        |            |        | 2020-01-02T23:51:23.000Z|
+| 4        | 103         | 1        | 4          |        | 2020-01-04T13:23:46.000Z|
+| 4        | 103         | 1        | 4          |        | 2020-01-04T13:23:46.000Z|
+| 4        | 103         | 2        | 4          |        | 2020-01-04T13:23:46.000Z|
+| 5        | 104         | 1        |            | 1      | 2020-01-08T21:00:29.000Z|
+| 6        | 101         | 2        |            |        | 2020-01-08T21:03:13.000Z|
+| 7        | 105         | 2        |            | 1      | 2020-01-08T21:20:29.000Z|
+| 8        | 102         | 1        |            |        | 2020-01-09T23:54:33.000Z|
+| 9        | 103         | 1        | 4          | 1, 5   | 2020-01-10T11:22:59.000Z|
+| 10       | 104         | 1        |            |        | 2020-01-11T18:34:49.000Z|
+| 10       | 104         | 1        | 2, 6       | 1, 4   | 2020-01-11T18:34:49.000Z|
+
+</details>
+
+**Passos:**
+
+- Criação de Tabela Temporária: Foi criada uma tabela temporária chamada `customer_orders_temp` para armazenar dados tratados.
+- Seleção de Colunas Relevantes: A consulta seleciona colunas importantes, incluindo `order_id`, `customer_id`, `pizza_id` e `order_time`.
+- Tratamento de Dados: Através da cláusula **CASE**, os valores 'null' nas colunas exclusions e extras são substituídos por strings vazias.
+
+### Tabela `runner_orders`
+
+- Correção de dados faltantes: 
+    -  os valores `null` estão imputados como texto.
+    -  há tanto `null` quanto `NA` para indicar dados faltantes.
+- Correção das medidas de unidade:
+    - remover os 'km' e tranformar em um coluna com apenas números em `distance`
+    - remover os textos sinalizando a hora e transformar em uma coluna com apenas números em `duration`
+
+```sql
+CREATE TEMP TABLE runner_orders_temp AS
+SELECT
+     order_id,
+     runner_id,
+     --- pickup_time
+     CASE
+     	WHEN pickup_time = 'null' THEN ' '
+        ELSE pickup_time
+     END AS pickup_time,
+     -- colunas distance 
+     CASE 
+         WHEN distance LIKE '%km' THEN TRIM(TRAILING 'km' FROM distance)
+         WHEN distance = 'null' THEN ' '
+         ELSE distance
+     END AS distance,
+     -- coluna duration
+     CASE
+     	WHEN duration LIKE '%minutes' THEN TRIM(TRAILING 'minutes' FROM  duration)
+        WHEN duration LIKE '%mins' THEN TRIM(TRAILING 'mins' FROM  duration)
+        WHEN duration LIKE '%minute' THEN TRIM(TRAILING 'minute' FROM  duration)
+        WHEN duration = 'null' THEN ' '
+     	ELSE duration
+     END AS duration,
+     --- coluna cancellation
+     CASE
+     	WHEN cancellation = 'null' OR cancellation IS NULL THEN ' '
+        ELSE cancellation
+     END AS cancellation
+FROM pizza_runner.runner_orders;
+```
+
+Os resultados da tabela limpos estão aqui:
+<details>
+  <summary>runner_orders_temp</summary>
+
+| order_id | runner_id | pickup_time        | distance | duration | cancellation          |
+|----------|-----------|-------------------|----------|----------|-----------------------|
+| 1        | 1         | 2020-01-01 18:15:34 | 20       | 32       |                       |
+| 2        | 1         | 2020-01-01 19:10:54 | 20       | 27       |                       |
+| 3        | 1         | 2020-01-03 00:12:37 | 13.4     | 20       |                       |
+| 4        | 2         | 2020-01-04 13:53:03 | 23.4     | 40       |                       |
+| 5        | 3         | 2020-01-08 21:10:57 | 10       | 15       |                       |
+| 6        | 3         |                   |          |          | Restaurant Cancellation |
+| 7        | 2         | 2020-01-08 21:30:45 | 25       | 25       |                       |
+| 8        | 2         | 2020-01-10 00:15:02 | 23.4     | 15       |                       |
+| 9        | 2         |                   |          |          | Customer Cancellation  |
+| 10       | 1         | 2020-01-11 18:50:20 | 10       | 10       |                       |
+
+</details>
+
+**Passos:**
+
+- Criação de Tabela Temporária: Uma tabela temporária chamada `runner_orders_temp` foi criada para armazenar os resultados da consulta a seguir.
+
+- Seleção de Colunas e Tratamento de Nulos: A consulta seleciona as `colunas order_id`, `runner_id`, `pickup_time`, `distance`, `duration` e `cancellation` da tabela `pizza_runner.runner_orders`. Ela também aplica uma lógica de tratamento de nulos usando a cláusula **CASE** nas colunas `pickup_time`, `distance`, `duration` e `cancellation`.
+
+- Tratamento de Valores Nulos e Unidades de Medida: utilização da função **TRIM** para remover unidades de medida específicas (como "km", "minutes", "mins" e "minute") de strings em colunas de dados, garantindo que os valores sejam formatados corretamente e também substituindo valores "null" por espaços vazios para melhorar a apresentação dos dados.
+
+---
+
+## Métricas das pizzas
+
+---
+
+## Experiência do usuário e do entregador
+
+---
+
+## Otimização dos igredientes utilizados
+
+---
+
+## Precificação e avaliações
+
+---
+
+## Perguntas adicionais
