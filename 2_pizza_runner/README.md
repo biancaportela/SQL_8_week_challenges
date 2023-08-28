@@ -29,7 +29,7 @@ Danny compartilhou 6 datasets para o estudo de caso, sendo eles
 Você pode inspecionar o diagrama de relacionamento de entidades e os dados de exemplo abaixo.
 
 <p align="center">
-<img src="https://github.com/biancaportela/SQL_8_week_challenges/blob/main/imagens/schema_dannys_dinner.png?raw=true" alt="schema" >
+<img src="https://github.com/biancaportela/SQL_8_week_challenges/blob/main/imagens/schema_pizza.png?raw=true" alt="schema" >
 
 <details>
   <summary>runners</summary>
@@ -77,7 +77,7 @@ A tabela `runners` mostra a data de registro para cada novo entregador.
 
 <details>
   <summary>runner_orders</summary>
-  
+
 Após cada pedido ser recebido pelo sistema, ele é atribuído a um entregador. No entanto, nem todos os pedidos são completamente concluídos e podem ser cancelados pelo restaurante ou pelo cliente.
 
 O `pickup_time` é o carimbo de data/hora em que o entregador chega à sede do Pizza Runner para pegar as pizzas recém-cozidas. Os campos `distance` (distância) e `duration` (duração) estão relacionados com o quão longe e por quanto tempo o entregador teve que viajar para entregar o pedido ao respectivo cliente.
