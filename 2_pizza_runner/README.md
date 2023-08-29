@@ -165,7 +165,6 @@ Este estudo de caso apresenta uma série de etapas interligadas.
 
 A primeira delas está focada na limpeza e preparação dos dados. Posteriormente, são abordadas questões relacionadas às métricas das pizzas, experiência tanto do usuário quanto do entregador, otimização dos ingredientes, precificação e avaliações, além das perguntas adicionais.
 
----
 
 ## Data Preprocessing
 
@@ -302,7 +301,166 @@ Os resultados da tabela limpos estão aqui:
 
 ## Métricas das pizzas
 
+**1. Quantas pizzas foram pedidas?**
+
+```sql
+SELECT
+	COUNT (pizza_id) AS pedidos_total
+FROM customer_orders_temp;
+```
+| pedidos_total |
+|:-------------:|
+|      14       |
+
+
+**Passos:**
+
+- A função **COUNT()** é usada para contar o número de registros que possuem valores não nulos na coluna `pizza_id`.
+
+**2. Quantos pedidos  únicos foram feitos?**
+
+```sql
+SELECT
+	COUNT(DISTINCT order_id) AS ordens_unicas
+FROM customer_orders_temp
+```
+| ordens_unicas |
+|--------------|
+|      10      |
+
+**Passos:**
+- O código utiliza a função **COUNT()** para contar o número de ordens únicas na tabela `customer_orders_temp`.
+
+- A cláusula **DISTINCT** é usada para garantir que apenas valores únicos de `order_id` sejam considerados ao contar as ordens únicas na tabela. 
+
+
+**3. Quantos pedidos bem-sucedidos foram entregues por cada entregador?**
+
+```sql
+SELECT
+  runner_id,	
+  COUNT(order_id) pediddos_sucedidos
+FROM runner_orders_temp
+WHERE cancellation IS  NULL
+	OR cancellation NOT IN ('Restaurant Cancellation', 'Customer Cancellation')
+GROUP BY runner_id
+ORDER BY runner_id 
+```
+
+| runner_id | pediddos_sucedido |
+|-----------|-------------------|
+| 1         | 4                 |
+| 2         | 3                 |
+| 3         | 1                 |
+
+**Passos:**
+
+- A consulta conta o número de pedidos (`order_id`) para cada entregador (`runner_id`), mas apenas para aqueles pedidos que não foram cancelados. 
+
+- Isso é feito usando a cláusula **WHERE** que verifica se a coluna `cancellation` é nula ou não está nos valores de cancelamento ('Restaurant Cancellation' ou 'Customer Cancellation').
+
+- Os resultados são agrupados por `runner_id` e, em seguida, a cláusula **ORDER BY** organiza os resultados em ordem crescente de `runner_id`.
+
+
+
+**4. Quantos de cada tipo de pizza foram entregues?**
+
+```sql
+SELECT 
+	pizza_name,
+    COUNT(co.order_id) AS qtd_pizza_entregue
+FROM customer_orders_temp AS co
+LEFT JOIN pizza_runner.pizza_names AS pn
+ON co.pizza_id = pn.pizza_id
+LEFT JOIN  runner_orders_temp AS ro
+ON co.order_id = ro.order_id
+WHERE cancellation IS  NULL
+	OR cancellation NOT IN ('Restaurant Cancellation', 'Customer Cancellation')
+GROUP BY pizza_name
+```
+
+| pizza_name  | qtd_pizza_entregue |
+|-------------|-------------------|
+| Meatlovers  | 9                 |
+| Vegetarian  | 3                 |
+
+**Passos:**
+
+- Seleção de Dados e Junções: Utilizando as tabelas `customer_orders_temp`, `pizza_names` e `runner_orders_temp`, selecionei as colunas necessárias para a análise e estabeleci as junções apropriadas com base nas colunas-chave como `pizza_id` e `order_id`.
+
+- Filtragem de Pedidos Válidos: Utilizei a cláusula **WHERE** para filtrar os registros com base nas condições de cancelamento, como feito na questão anterior. 
+
+- Agrupamento e Contagem: Usando a cláusula **GROUP BY**, agrupei os registros por `pizza_name`, que representa o nome de cada tipo de pizza. Em seguida, usei a função de agregação **COUNT** para contar quantos pedidos de cada tipo de pizza foram entregues.
+
+**5. Quantas pizzas Vegetarianas e Meat Lovers foram pedidas por cada cliente?**
+
+
+```sql
+SELECT
+    co.customer_id,
+    SUM(CASE WHEN pn.pizza_name = 'Vegetarian' THEN 1 ELSE 0 END) AS qtd_vegetarian,
+    SUM(CASE WHEN pn.pizza_name = 'Meatlovers' THEN 1 ELSE 0 END) AS qtd_meatlovers
+FROM customer_orders_temp AS co
+LEFT JOIN pizza_runner.pizza_names AS pn ON co.pizza_id = pn.pizza_id
+GROUP BY co.customer_id
+ORDER BY co.customer_id;
+```
+| customer_id | qtd_vegetarian | qtd_meatlovers |
+|-------------|----------------|----------------|
+| 101         | 1              | 2              |
+| 102         | 1              | 2              |
+| 103         | 1              | 3              |
+| 104         | 0              | 3              |
+| 105         | 1              | 0              |
+
+**Passos:**
+- Utiliza a função de agregação **SUM** junto com a expressão condicional **CASE** para calcular a quantidade de pizzas Vegetarianas e Meat Lovers para cada cliente. Se o nome da pizza for 'Vegetarian', a expressão **CASE** atribui o valor 1, caso contrário, atribui o valor 0. O **SUM** acumula esses valores para cada tipo de pizza.
+
+- A cláusula LEFT JOIN é usada para combinar as informações da tabela `customer_orders_temp` com a `tabela pizza_names`, com base na coluna `pizza_id`.
+
+- A cláusula **GROUP BY** agrupa os resultados pelo `customer_id`, ou seja, a quantidade de pizzas é calculada por cliente.
+
+**6. Qual foi o número máximo de pizzas entregues em um único pedido?**
+
+```sql
+
+```
+
+**Passos:**
+
+**7. Para cada cliente, quantas pizzas entregues tiveram pelo menos 1 alteração e quantas não tiveram alterações?**
+
+```sql
+
+```
+
+**Passos:**
+
+**8. Quantas pizzas foram entregues que tinham tanto exclusões quanto extras?**
+
+```sql
+
+```
+
+**Passos:**
+
+**9. Qual foi o volume total de pizzas encomendadas para cada hora do dia?**
+
+```sql
+
+```
+
+**Passos:**
+
+**10. Qual foi o volume de pedidos para cada dia da semana?**
+
+```sql
+
+```
+
 ---
+
+**Passos:**
 
 ## Experiência do usuário e do entregador
 
