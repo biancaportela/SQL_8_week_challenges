@@ -497,6 +497,7 @@ WHERE ro.cancellation IS NULL
 |alteração|
 |---------|
 |1        |
+
 **Passos:**
 
 - Utilizando a estrutura já previamente estabelecida, apenas alterei a estrutura lógica da cláusula **CASE**, e também eliminei o trecho de código que não se mostrava relevante (referente às pizzas sem modificações).
