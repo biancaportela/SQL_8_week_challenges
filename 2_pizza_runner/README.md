@@ -191,9 +191,9 @@ CREATE TEMP TABLE customer_orders_temp AS
       order_id,
       customer_id,
       pizza_id,
-      CASE WHEN exclusions = 'null' THEN ' '
+      CASE WHEN exclusions = 'null' THEN ''
       ELSE exclusions END AS exclusions,
-      CASE WHEN extras = 'null' OR extras IS NULL THEN ' '
+      CASE WHEN extras = 'null' OR extras IS NULL THEN ''
       ELSE extras END AS extras,
       order_time
   FROM pizza_runner.customer_orders;
@@ -423,46 +423,188 @@ ORDER BY co.customer_id;
 **6. Qual foi o número máximo de pizzas entregues em um único pedido?**
 
 ```sql
-
+SELECT 
+	ro.order_id,
+	COUNT(ro.order_id) AS qtd
+FROM customer_orders_temp AS co
+LEFT JOIN  runner_orders_temp AS ro
+ON co.order_id = ro.order_id
+WHERE cancellation IS  NULL
+	OR cancellation NOT IN ('Restaurant Cancellation', 'Customer Cancellation')
+GROUP BY ro.order_id
+ORDER BY qtd DESC
+LIMIT 1
 ```
+| order_id | qtd |
+|----------|-----|
+| 4        | 3   |
 
 **Passos:**
+- A consulta seleciona duas colunas, `order_id` da tabela `runner_orders_temp` e a contagem da coluna `order_id`, que é renomeada como `qtd` (quantidade).
+- A tabela temporária `customer_orders_temp` é unida com as tabelas `runner_orders_temp` usando cláusulas **LEFT JOIN**. 
+- Os resultados são filtrados para incluir apenas os pedidos que não foram cancelados. Isso é feito através da cláusula **WHERE**.
+- Os resultados são agrupados pelo `order_id` usando a cláusula **GROUP BY**. Isso significa que as contagens são calculadas para cada pedido.
+- Os resultados são ordenados em ordem decrescente de contagem (qtd) usando a cláusula **ORDER BY**.
+- A cláusula **LIMIT** 1 é usada para restringir o resultado a apenas uma linha, que corresponde ao pedido com o maior número de pizzas entregues, conforme determinado pela contagem.
 
 **7. Para cada cliente, quantas pizzas entregues tiveram pelo menos 1 alteração e quantas não tiveram alterações?**
 
 ```sql
+SELECT 
+  co.customer_id,
+  SUM(CASE WHEN co.extras <> '' OR co.exclusions <> '' THEN 1 ELSE 0 END) AS alteração,
+  SUM (CASE WHEN co.extras = '' AND co.exclusions = '' THEN 1 ELSE 0 END) AS sem_alteração
+FROM customer_orders_temp AS co
+LEFT JOIN  runner_orders_temp AS ro
+ON co.order_id = ro.order_id
+WHERE ro.cancellation IS NULL
+  OR ro.cancellation NOT IN ('Restaurant Cancellation', 'Customer Cancellation')
+GROUP BY co.customer_id
+ORDER BY co.customer_id;
 
 ```
 
+| customer_id | alteração | sem_alteração |
+|------------|-----------|---------------|
+| 101        | 0         | 2             |
+| 102        | 0         | 3             |
+| 103        | 3         | 0             |
+| 104        | 2         | 1             |
+| 105        | 1         | 0             |
+
 **Passos:**
+- Para esta etapa, empreguei a estrutura de tabela desenvolvida em questões anteriores, combinando os dados das tabelas temporárias `customer_orders_temp` e `runner_orders_temp`.
+
+- Além disso, realizei uma seleção específica, focando exclusivamente nos pedidos entregues, por meio da cláusula **WHERE**.
+
+- Uma inovação neste código reside na incorporação da cláusula **CASE**, em conjunto com a função **SUM**, que permite quantificar tanto os pedidos com modificações (quando há valores em "extras" ou "exclusions") quanto os pedidos sem alterações (quando ambos "extras" e "exclusions" estão vazios).
+
+- Finaliza-se ao agrupar e ordenar os resultados com base no `customer_id`.
+
 
 **8. Quantas pizzas foram entregues que tinham tanto exclusões quanto extras?**
 
 ```sql
-
+SELECT 
+SUM(CASE WHEN co.extras <> '' AND co.exclusions <> '' THEN 1 ELSE 0 END) AS alteração
+FROM customer_orders_temp AS co
+LEFT JOIN  runner_orders_temp AS ro
+ON co.order_id = ro.order_id
+WHERE ro.cancellation IS NULL
+  OR ro.cancellation NOT IN ('Restaurant Cancellation', 'Customer Cancellation')
 ```
 
+|alteração|
+|---------|
+|1        |
 **Passos:**
+
+- Utilizando a estrutura já previamente estabelecida, apenas alterei a estrutura lógica da cláusula **CASE**, e também eliminei o trecho de código que não se mostrava relevante (referente às pizzas sem modificações).
+
+- Ao substituir-se a cláusula OR por AND, atende-se as condições lógicas da questão, resultando na obtenção do resultado esperado.
 
 **9. Qual foi o volume total de pizzas encomendadas para cada hora do dia?**
 
 ```sql
-
+SELECT 
+	EXTRACT(HOUR FROM MAX(order_time)) AS hora,
+    COUNT(order_id) as qtd_pedidos
+FROM customer_orders_temp
+GROUP BY EXTRACT(HOUR FROM order_time)
+ORDER BY qtd_pedidos DESC,hora ASC;
 ```
+hora   | qtd_pedidos
+-------|------------
+13     | 3
+18     | 3
+21     | 3
+23     | 3
+11     | 1
+19     | 1
 
 **Passos:**
 
+- Selesionei a hora (apenas a parte da hora) da coluna `order_time` da tabela temporária `customer_orders_temp` usando a função **EXTRACT(HOUR FROM ...)**.
+
+- Calculei a contagem total de pedidos para cada hora usando a função `COUNT(order_id)`.
+
+- Os resultados são agrupados de acordo com a hora extraída da coluna `order_time`.
+
+- Os resultados finais são ordenados em ordem decrescente de contagem de pedidos (`qtd_pedidos`) e, em caso de empate na contagem, são ordenados em ordem crescente de hora (`hora`).
+
 **10. Qual foi o volume de pedidos para cada dia da semana?**
+
+```sql
+SELECT 
+	to_char(order_time, 'Day') AS dia_da_semana,
+    COUNT(order_id) as qtd_pedidos
+FROM customer_orders_temp
+GROUP BY to_char(order_time, 'Day') 
+ORDER BY dia_da_semana ASC
+```
+
+| dia_da_semana | qtd_pedidos |
+|---------------|-------------|
+| Friday        | 1           |
+| Saturday      | 5           |
+| Thursday      | 3           |
+| Wednesday     | 5           |
+
+**Passos:**
+- De maneira similar à questão anterior, extraímos o dia da semana da coluna `order_time` da tabela temporária `customer_orders_temp` usando a função **to_char(order_time, 'Day')**
+
+- Calculei a contagem total de pedidos para cada dia da semana usando a função `COUNT(order_id)`.
+
+- Os resultados são agrupados de acordo com o dia da semana extraída da coluna `order_time`.
+
+- Os resultados finais são ordenados em ordem pelo dia da semana.
+
+---
+
+
+## Experiência do usuário e do entregador
+
+**1. Quantos runners se inscreveram para cada período de 1 semana? (i.e, a semana começa em 2021-01-01)**
 
 ```sql
 
 ```
 
----
+**2. Qual foi o tempo médio em minutos que cada runner levou para chegar à sede da Pizza Runner para pegar o pedido?**
 
-**Passos:**
+```sql
 
-## Experiência do usuário e do entregador
+```
+
+**3. Existe alguma relação entre o número de pizzas e o tempo necessário para preparar o pedido?**
+
+```sql
+
+```
+
+**4. Qual foi a distância média percorrida para cada cliente?**
+
+```sql
+
+```
+
+**5. Qual foi a diferença entre os tempos de entrega mais longos e mais curtos de todos os pedidos?**
+
+```sql
+
+```
+
+**6. Qual foi a velocidade média para cada runner em cada entrega, e você percebeu alguma tendência nesses valores?**
+
+```sql
+
+```
+
+**7. Qual é a porcentagem de entregas bem-sucedidas para cada runner?**
+
+```sql
+
+```
 
 ---
 
