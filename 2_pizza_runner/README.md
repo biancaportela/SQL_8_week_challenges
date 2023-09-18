@@ -568,49 +568,297 @@ ORDER BY dia_da_semana ASC
 **1. Quantos runners se inscreveram para cada período de 1 semana? (i.e, a semana começa em 2021-01-01)**
 
 ```sql
-
+SELECT 
+  DATE_PART('WEEK', registration_date) AS registration_week,
+  COUNT(runner_id) AS runner_signup
+FROM pizza_runner.runners
+GROUP BY DATE_PART('WEEK', registration_date);
 ```
+
+| registration_week | runner_signup |
+|-------------------|---------------|
+|        53         |       2       |
+|         1         |       1       |
+|         2         |       1       |
+
+**Passos:**
+
+- Nesse código utilizei a função **DATE_PART** para calcular o número da semana em que cada registro ocorreu. Isso é feito a partir da coluna `registration_date` na tabela `pizza_runner.runners`. O resultado é renomeado como `registration_week`.
+
+- A segunda linha do código utiliza a função **COUNT** para contar o número de inscrições de corredores (`runner_id`) em cada semana. Isso é renomeado como `runner_signup`.
+
+- Por fim, utilizei a cláusula **GROUP BY** para agrupar os resultados com base no número da semana calculado anteriormente. 
+
+- Como resultado temos uma tabela que mostra o número da semana (`registration_week`) e o número de inscrições de corredores (`runner_signup`) em cada semana. 
+
+- **OBS**:  Em relação ao número da semana 53, é importante observar que o PostgreSQL segue a convenção ISO 8601 para contar as semanas do ano. Nesse sistema, o ano começa na semana que inclui o dia 4 de janeiro. No ano de 2021, por exemplo, o dia 04/01 caiu na segunda semana do ano, quando contamos a partir do dia 01 de janeiro como o início do ano.
 
 **2. Qual foi o tempo médio em minutos que cada runner levou para chegar à sede da Pizza Runner para pegar o pedido?**
 
 ```sql
+WITH runner_pickup AS (
+  SELECT 
+    ro.runner_id,
+    ro.order_id,
+    co.order_time,
+    CASE
+      WHEN ro.pickup_time <> ' ' THEN TO_TIMESTAMP(ro.pickup_time, 'YYYY-MM-DD HH24:MI:SS')
+      ELSE NULL
+    END AS pickup_time_timestamp
+  FROM customer_orders_temp co
+  LEFT JOIN runner_orders_temp ro
+  ON co.order_id = ro.order_id
+)
 
+SELECT
+  runner_id,
+  AVG(DATE_PART('minute', pickup_time_timestamp - order_time)) AS average_time_difference_minutes
+FROM runner_pickup
+GROUP BY runner_id;
 ```
+
+| runner_id | average_time_difference_minutes |
+|-----------|--------------------------------|
+|     3     |             10.0               |
+|     2     |             23.4               |
+|     1     |        15.333333333333334      |
+
+
+**Passos:**
+- Comecei o código definindo uma Common Table Expression (CTE) chamada `runner_pickup`. Esta CTE é uma consulta temporária que combina dados de duas tabelas, `customer_orders_temp` e `runner_orders_temp`, usando uma operação de junção esquerda (**LEFT JOIN**). Ela seleciona várias colunas, incluindo `runner_id`, `order_id`, `order_time`, e calcula uma nova coluna chamada `pickup_time_timestamp`. Essa nova coluna é criada com base na coluna `pickup_time`, que é convertida para o tipo **TIMESTAMP** usando a função **TO_TIMESTAMP** se não for uma string vazia (' '), caso contrário, é definida como **NULL**.
+
+- Na segunda parte do código executei uma consulta na CTE `runner_pickup`. Selecionei a coluna `runner_id` e calculei a média das diferenças em minutos entre as colunas `pickup_time_timestamp` e `order_time`. Fiz isso usando a função **DATE_PART** para calcular a diferença em minutos entre as duas colunas e a função **AVG** para calcular a média dessas diferenças. O resultado é retornado como uma coluna chamada `average_time_difference_minutes`.
+
+- O resultado da consulta é agrupado pela coluna `runner_id` usando a cláusula GROUP BY. 
+
+- A consulta final retorna a média das diferenças de tempo em minutos para cada `runner_id` presente nos dados.
 
 **3. Existe alguma relação entre o número de pizzas e o tempo necessário para preparar o pedido?**
 
 ```sql
 
+WITH pizza_preparation_stats AS (
+  WITH runner_pickup AS (
+    SELECT 
+      ro.runner_id,
+      ro.order_id,
+      co.order_time,
+      co.pizza_id,
+      CASE
+        WHEN ro.pickup_time <> ' ' THEN TO_TIMESTAMP(ro.pickup_time, 'YYYY-MM-DD HH24:MI:SS')
+        ELSE NULL
+      END AS pickup_time_timestamp
+    FROM customer_orders_temp co
+    LEFT JOIN runner_orders_temp ro ON co.order_id = ro.order_id
+  )
+  SELECT
+    order_id,
+    COUNT(pizza_id) AS number_of_pizzas,
+    AVG(DATE_PART('minute', pickup_time_timestamp - order_time)) AS average_time_difference_minutes
+  FROM
+    runner_pickup
+  GROUP BY
+    order_id
+  ORDER BY
+    order_id
+)
+
+SELECT
+  number_of_pizzas,
+  AVG(average_time_difference_minutes) AS avg_time_difference
+FROM
+  pizza_preparation_stats
+GROUP BY
+  number_of_pizzas
+ORDER BY
+  number_of_pizzas;
 ```
+| number_of_pizzas | avg_time_difference |
+|------------------|---------------------|
+| 1                | 12                  |
+| 2                | 18                  |
+| 3                | 29                  |
+
+
+**Passos:**
+
+Para fazer essa consulto foi necessário utilizar CTEs aninhadas (talvez não seja a solução mais elegante).
+
+- **CTEs Aninhadas**: A primeira CTE, chamada `runner_pickup`, é definida dentro da segunda CTE chamada `pizza_preparation_stats`. Isso permite uma organização lógica das consultas, com a segunda CTE construindo sobre os resultados da primeira. A primeira CTE tem por objetivo separar o tempo de duração de cada pedido, enquanto a segunda tem por objetivo calcular o número de pizzas em cada pedido.
+
+- **Cálculos de Estatísticas**: Assim, segunda CTE (`pizza_preparation_stats`) calcula estatísticas relacionadas à preparação de pizzas, como o número de pizzas em cada pedido e o tempo médio de preparação em minutos. Isso é feito com base nos dados das tabelas `customer_orders_temp` e `runner_orders_temp`.
+
+
+- **Consulta de Resultados**: Finalmente, a consulta principal fora das CTEs usa a tabela temporária `pizza_preparation_stats` para calcular a média do tempo de diferença para diferentes números de pizzas em pedidos. Isso permite analisar a relação entre o número de pizzas em um pedido e o tempo médio de preparação. A consulta principal é organizada em torno dos resultados já calculados nas CTEs.
+
 
 **4. Qual foi a distância média percorrida para cada cliente?**
 
 ```sql
-
+SELECT 
+  co.customer_id,
+  AVG(CASE
+    WHEN ro.distance <> ' ' THEN (ro.distance)::FLOAT
+    ELSE NULL
+  END) AS distance_avg
+FROM
+  runner_orders_temp ro
+LEFT JOIN
+  customer_orders_temp co
+ON
+  ro.order_id = co.order_id
+GROUP BY customer_id
+ORDER BY customer_id
 ```
+| customer_id | distance_avg           |
+|------------|------------------------|
+| 101        | 20                     |
+| 102        | 16.733333333333334     |
+| 103        | 23.399999999999995     |
+| 104        | 10                     |
+| 105        | 25                     |
+
+
+**Passos:**
+
+- A consulta seleciona duas colunas da tabela, `customer_id` da tabela `customer_orders_temp` e a média dos valores da coluna `distance` após uma condição **CASE**. A função AVG é usada para calcular a média desses valores.
+
+- A expressão **CASE** é usada para verificar se a coluna `distance` da tabela `runner_orders_temp` não é uma string vazia. Se a condição for verdadeira, o valor da coluna `distance` é convertido em um tipo de dado float, caso contrário, é atribuído o valor NULL. Isso garante que apenas valores não vazios e numéricos sejam incluídos no cálculo da média.
+
+- Os resultados são agrupados pelo valor da coluna `customer_id`, o que significa que a média da coluna distance será calculada separadamente para cada cliente.
 
 **5. Qual foi a diferença entre os tempos de entrega mais longos e mais curtos de todos os pedidos?**
 
 ```sql
-
+SELECT MAX(duration::NUMERIC) - MIN(duration::NUMERIC) AS delivery_time_difference
+FROM runner_orders_temp
+where duration not like ' ';
 ```
+| delivery_time_difference |
+|-------------------------|
+| 30                      |
+
+
+**Passos:**
+- Filtrei os dados na tabela `runner_orders_temp` usando a cláusula **WHERE** para selecionar apenas as linhas onde a coluna `duration` não é uma string vazia para evitar valores inválidos.
+
+- Calculei a diferença entre o valor máximo (**MAX**) e o valor mínimo (**MIN**) da coluna `duration` após converter os valores para o tipo de dados **NUMERIC**. Isso resulta na diferença total de tempo entre os valores máximo e mínimo na coluna `duration`, que é nomeada como `delivery_time_difference`.
 
 **6. Qual foi a velocidade média para cada runner em cada entrega, e você percebeu alguma tendência nesses valores?**
 
 ```sql
-
+SELECT
+ro.order_id,
+ro.runner_id,
+COUNT(pizza_id) AS num_pizza,
+ROUND(AVG(ro.distance::NUMERIC / ro.duration::NUMERIC *60),2) AS avg_vel
+FROM runner_orders_temp ro
+LEFT JOIN customer_orders_temp co
+ON ro.order_id = co.order_id
+WHERE ro.distance <> ' '
+GROUP BY ro.order_id, ro.runner_id
+ORDER BY avg_vel
 ```
+| order_id | runner_id | num_pizza | avg_vel |
+|----------|-----------|-----------|---------|
+| 4        | 2         | 3         | 35.10   |
+| 1        | 1         | 1         | 37.50   |
+| 5        | 3         | 1         | 40.00   |
+| 3        | 1         | 2         | 40.20   |
+| 2        | 1         | 1         | 44.44   |
+| 10       | 1         | 2         | 60.00   |
+| 7        | 2         | 1         | 60.00   |
+| 8        | 2         | 1         | 93.60   |
+
+- Não parece haver relação entre a velocidade de entrega e o número de entregas.
+
+
+**Passos:**
+
+- Selecionei as colunas `order_id` e `runner_id` da tabela `runner_orders_temp`. Também contei o número de pizzas em cada pedido usando **COUNT(pizza_id)** e calculei a média da velocidade usando a fórmula **(ro.distance::NUMERIC / ro.duration::NUMERIC * 60)** após converter a distância e a duração em minutos.
+
+- Fiz a junção (**LEFT JOIN**) entre a tabela `runner_orders_temp` (representando os dados dos corredores) e a tabela `customer_orders_temp` (representando os dados dos clientes) com base no `order_id`. 
+
+- A cláusula **WHERE** filtra os registros onde a coluna `distance` não é uma string vazia. Isso garante que apenas registros com informações válidas de distância sejam incluídos no cálculo da média de velocidade.
+
+- Agrupei usando **GROUP BY** `ro.order_id`, `ro.runner_id`, o que significa que a média de velocidade é calculada separadamente para cada combinação única de order_id e runner_id. A cláusula **ORDER BY** avg_vel ordena os resultados com base na média de velocidade em ordem crescente.
 
 **7. Qual é a porcentagem de entregas bem-sucedidas para cada runner?**
+
+```sql
+SELECT 
+  runner_id, 
+  ROUND(100 * SUM(
+    CASE WHEN distance = ' ' THEN 0
+    ELSE 1 END) / COUNT(*), 0) AS success_perc
+FROM runner_orders_temp 
+GROUP BY runner_id;
+```
+| runner_id | success_perc |
+|-----------|--------------|
+| 3         | 50           |
+| 2         | 75           |
+| 1         | 100          |
+
+**Passos:**
+
+A porcentagem de sucesso representa a proporção de pedidos entregues com sucesso em relação ao total de pedidos para cada runner. Para calulcar  a porcentagem de sucesso foi feito as seguintes operações:
+
+- Contei os pedidos entregues com sucesso (onde a coluna `distance` não é uma string vazia) e dividi pelo número total de pedidos, multiplicando por 100.
+
+- A função **ROUND** é usada para arredondar a porcentagem de sucesso para o número inteiro mais próximo, sem casas decimais.
+
+- Agrupei os resultados por `runner_id`, garantindo que a porcentagem de sucesso seja calculada separadamente para cada corredor na tabela `runner_orders_temp`.
+
+
+
+## Otimização dos igredientes utilizados
+
+1. **Quais são os ingredientes padrão para cada pizza?**
 
 ```sql
 
 ```
 
----
+2. **Qual foi o extra mais frequentemente adicionado?**
 
-## Otimização dos igredientes utilizados
 
+```sql
+
+```
+
+3. **Qual foi a exclusão mais comum?**
+
+
+```sql
+
+```
+
+4. **Gerar uma nova tabela para cada registro na tabela `customers_orders` no seguinte formato:**
+
+- Meat Lovers
+- Meat Lovers - Exclude Beef
+- Meat Lovers - Extra Bacon
+- Meat Lovers - Exclude Cheese, Bacon - Extra Mushroom, Peppers
+
+
+```sql
+
+```
+
+5. **Gerar uma lista de ingredientes separados por vírgula em ordem alfabética para cada pedido de pizza da tabela `customers_orders`.  Adicione um "2x" na frente de quaisquer ingredientes relevantes.**
+
+- Ex:  "Meat Lovers: 2xBacon, Beef, ... , Salami"
+
+```sql
+
+```
+
+6. **Qual é a quantidade total de cada ingrediente usado em todas as pizzas entregues, ordenado pela mais frequente primeiro lugar?**
+
+```sql
+
+```
 ---
 
 ## Precificação e avaliações
