@@ -817,22 +817,100 @@ A porcentagem de sucesso representa a proporção de pedidos entregues com suces
 1. **Quais são os ingredientes padrão para cada pizza?**
 
 ```sql
-
+SELECT
+  pr.pizza_id,
+  STRING_AGG(pt.topping_name, ', ') AS toppings_names
+FROM pizza_runner.pizza_recipes AS pr
+LEFT JOIN pizza_runner.pizza_toppings AS pt
+ON pt.topping_id = ANY(string_to_array(pr.toppings, ','::text)::integer[])
+GROUP BY pr.pizza_id
+ORDER BY pizza_id
 ```
+| pizza_id | toppings_names                                          |
+|----------|--------------------------------------------------------|
+| 1        | Bacon, BBQ Sauce, Beef, Cheese, Chicken, Mushrooms, Pepperoni, Salami |
+| 2        | Cheese, Mushrooms, Onions, Peppers, Tomatoes, Tomato Sauce |
+
+
+**Passos:**
+O segredo deste código está na maneira como foi feito o JOIN:
+
+- A expressão `string_to_array(pr.toppings, ','::text)::integer[]` converte a coluna `toppings` da tabela `pizza_recipes` de uma lista de IDs de toppings em uma array de inteiros, separando os valores com base na vírgula.
+
+- A condição `pt.topping_id = ANY(...)` verifica se pelo menos um dos valores no array de inteiros, resultante da conversão, corresponde ao `topping_id` na tabela `pizza_toppings`, permitindo a junção das tabelas com base nos toppings correspondentes.
+
+- Após feita a junção, usei a a função **STRING_AGG** para concatenar os valores da coluna `topping_name` usando uma vírgula e um espaço como separadores.
+
+- Utilizamos a cláusula **GROUP BY** para agrupar os resultados pelo `pizza_id`, de modo que a concatenação seja feita para cada `pizza_id `individualmente.
 
 2. **Qual foi o extra mais frequentemente adicionado?**
 
 
 ```sql
-
+WITH ExtraItems AS (
+  SELECT TRIM(unnest(string_to_array(extras, ','))) AS extra_item
+  FROM customer_orders_temp
+  WHERE extras != ''
+)
+SELECT
+  ei.extra_item,
+  COUNT(ei.extra_item) AS quantidade,
+  pt.topping_name
+FROM ExtraItems AS ei
+INNER JOIN pizza_runner.pizza_toppings AS pt
+ON pt.topping_id = CAST(ei.extra_item AS integer)
+GROUP BY ei.extra_item, pt.topping_name, pt.topping_id
+ORDER BY quantidade DESC
+LIMIT 1
 ```
+| extra_item | quantidade | topping_name |
+|------------|------------|--------------|
+| 1          | 4          | Bacon        |
+
+**Passos:**
+
+- Criei uma CTE chamada `ExtraItems`. Essa CTE é criada para processar os itens extras contidos na coluna extras da tabela `customer_orders_temp`.
+
+- Utilizei o comando `SELECT TRIM(unnest(string_to_array(extras, ','))) AS extra_item FROM customer_orders_temp WHERE extras != ''` para dividir a coluna extras em uma lista de itens extras usando uma vírgula como delimitador. A função **unnest** cria uma linha separada para cada item na lista e **TRIM** remove espaços em branco em excesso.
+
+- A consulta principal seleciona os resultados da CTE `ExtraItems` e conta a frequência de cada item extra individualmente, armazenando o resultado em uma coluna chamada `quantidade`.
+
+- Já o comando `INNER JOIN pizza_runner.pizza_toppings AS pt ON pt.topping_id = CAST(ei.extra_item AS integer)` faz um **INNER JOIN** com a tabela `pizza_runner.pizza_toppings` usando `pt.topping_id` da tabela de `toppings` e o resultado convertido de `ei.extra_item` para um número inteiro. Isso combina os itens extras com os toppings correspondentes da tabela `pizza_toppings`.
+
+- Os resultados são agrupados pelo extra_item, topping_name e topping_id. Isso permite contar a frequência de cada item extra e listar o nome do topping correspondente. Os resultados também  são ordenados em ordem decrescente de frequência, de modo que os itens extras mais frequentemente adicionados apareçam no topo.
+
+- Finalmente, utilizei a cláusula **LIMIT 1** para retornar apenas a linha com o item extra mais frequentemente adicionado. 
+
+
+
 
 3. **Qual foi a exclusão mais comum?**
 
 
 ```sql
-
+WITH Exclusao AS (
+  SELECT TRIM(unnest(string_to_array(exclusions, ','))) AS exclusions_item
+  FROM customer_orders_temp
+  WHERE exclusions != ''
+)
+SELECT
+  e.exclusions_item,
+  COUNT(e.exclusions_item) AS quantidade,
+  pt.topping_name
+FROM Exclusao AS e
+INNER JOIN pizza_runner.pizza_toppings AS pt
+ON pt.topping_id = CAST(e.exclusions_item AS integer)
+GROUP BY e.exclusions_item, pt.topping_name, pt.topping_id
+ORDER BY quantidade DESC
+LIMIT 1
 ```
+| exclusions_item | quantidade | topping_name |
+|-----------------|------------|--------------|
+| 4               | 4          | Cheese       |
+
+**Passos:**
+
+- Mesma lógica, apenas modifiquei o `extras` por `exclusion`
 
 4. **Gerar uma nova tabela para cada registro na tabela `customers_orders` no seguinte formato:**
 
