@@ -922,7 +922,90 @@ LIMIT 1
 
 ```sql
 
+WITH Exclusions AS (
+  SELECT
+   co.order_id,
+   co.pizza_id,
+   co.customer_id,
+   co.exclusions,
+   STRING_AGG(pt.topping_name, ', ') AS topping_names
+  FROM customer_orders_temp AS co
+  INNER JOIN pizza_runner.pizza_toppings AS pt
+  ON pt.topping_id IN (
+    SELECT UNNEST(string_to_array(co.exclusions, ', ')::integer[])
+  )
+  GROUP BY co.order_id, co.pizza_id, co.customer_id, co.exclusions
+  ORDER BY co.order_id, co.pizza_id
+),
+
+Extras AS (
+  SELECT
+   co.order_id,
+   co.pizza_id,
+   co.customer_id,
+   co.extras,
+   STRING_AGG(pt.topping_name, ', ') AS topping_names
+  FROM customer_orders_temp AS co
+  INNER JOIN pizza_runner.pizza_toppings AS pt
+  ON pt.topping_id IN (
+    SELECT UNNEST(string_to_array(co.extras, ', ')::integer[])
+  )
+  GROUP BY co.order_id, co.pizza_id, co.customer_id, co.extras
+  ORDER BY co.order_id, co.pizza_id
+),
+
+PizzaOrders AS (
+   SELECT
+    COALESCE(E.order_id, X.order_id) AS order_id,
+    COALESCE(E.pizza_id, X.pizza_id) AS pizza_id,
+    COALESCE(E.customer_id, X.customer_id) AS customer_id,
+    E.exclusions AS exclusions,
+    X.extras AS extras,
+    E.topping_names AS exclusions_topping_names,
+    X.topping_names AS extras_topping_names,
+    pn.pizza_name,
+    co.order_time
+  FROM Exclusions AS E
+  FULL JOIN Extras AS X
+  ON E.order_id = X.order_id AND E.pizza_id = X.pizza_id AND E.customer_id = X.customer_id
+  LEFT JOIN pizza_runner.pizza_names AS pn
+  ON E.pizza_id = pn.pizza_id OR X.pizza_id = pn.pizza_id
+  LEFT JOIN customer_orders_temp AS co
+  ON COALESCE(E.order_id, X.order_id) = co.order_id
+)
+
+SELECT
+  DISTINCT order_id,
+  customer_id,
+  pizza_id,
+  exclusions,
+  extras,
+  order_time,
+  CASE
+    WHEN exclusions_topping_names IS NOT NULL AND extras_topping_names IS NOT NULL THEN
+      pizza_name || ' - Exclude ' || exclusions_topping_names || ' - Extra ' || extras_topping_names
+    WHEN exclusions_topping_names IS NOT NULL THEN
+      pizza_name || ' - Exclude ' || exclusions_topping_names
+    WHEN extras_topping_names IS NOT NULL THEN
+      pizza_name || ' - Extra ' || extras_topping_names
+    ELSE
+      pizza_name
+  END AS pizza_description
+FROM PizzaOrders;
+
 ```
+
+| order_id | customer_id | pizza_id | exclusions       | extras        | order_time                 | pizza_description                                                |
+|----------|-------------|----------|------------------|---------------|----------------------------|------------------------------------------------------------------|
+| 4        | 103         | 1        | 4                | null          | 2020-01-04T13:23:46.000Z   | Meatlovers - Exclude Cheese, Cheese                              |
+| 4        | 103         | 2        | 4                | null          | 2020-01-04T13:23:46.000Z   | Vegetarian - Exclude Cheese                                      |
+| 5        | 104         | 1        | null             | 1             | 2020-01-08T21:00:29.000Z   | Meatlovers - Extra Bacon                                         |
+| 7        | 105         | 2        | null             | 1             | 2020-01-08T21:20:29.000Z   | Vegetarian - Extra Bacon                                        |
+| 9        | 103         | 1        | 4                | 1, 5          | 2020-01-10T11:22:59.000Z   | Meatlovers - Exclude Cheese - Extra Bacon, Chicken               |
+| 10       | 104         | 1        | 2, 6             | 1, 4          | 2020-01-11T18:34:49.000Z   | Meatlovers - Exclude BBQ Sauce, Mushrooms - Extra Bacon, Cheese |
+
+
+
 
 5. **Gerar uma lista de ingredientes separados por vírgula em ordem alfabética para cada pedido de pizza da tabela `customers_orders`.  Adicione um "2x" na frente de quaisquer ingredientes relevantes.**
 
