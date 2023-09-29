@@ -1004,26 +1004,156 @@ FROM PizzaOrders;
 | 9        | 103         | 1        | 4                | 1, 5          | 2020-01-10T11:22:59.000Z   | Meatlovers - Exclude Cheese - Extra Bacon, Chicken               |
 | 10       | 104         | 1        | 2, 6             | 1, 4          | 2020-01-11T18:34:49.000Z   | Meatlovers - Exclude BBQ Sauce, Mushrooms - Extra Bacon, Cheese |
 
+**Passos:**
+
+- As duas primeiras CTEs são baseadas em questões prévias.Uma é para exclusões e outra para extras. Cada uma delas obtém os ingredientes (toppings) com base nas colunas `exclusions` e `extras` da tabela `customer_orders_temp`, respectivamente. Os ingredientes são agrupados por `order_id`, `pizza_id`, `customer_id`, e as duplicatas são removidas usando a função **STRING_AGG** para criar uma lista de ingredientes separados por vírgula.
+
+- Uma terceira CTE chamada `PizzaOrders` é definida. Ela realiza um **FULL JOIN** entre as CTEs Exclusions e Extras com base nas colunas `order_id`, `pizza_id` e `customer_id`. Além disso, ela faz um **LEFT JOIN** com a tabela `pizza_names` para obter o nome da pizza correspondente e também com a tabela `customer_orders_temp` para obter a coluna `order_time`. O **COALESCE** está sendo usado para lidar com valores nulos nas colunas selecionadas da CTEs Exclusions e Extras quando elas são combinadas na CTE PizzaOrders.
+
+-  A consulta principal seleciona colunas específicas da CTE `PizzaOrders`. A coluna `pizza_description` é criada usando uma cláusula **CASE** que concatena o nome da pizza com base nas condições especificadas. O resultado é uma descrição da pizza que inclui informações sobre exclusões e extras, se aplicável.
 
 
+**OBS:** No case original havia mais duas perguntas. Resolvi não respondê-las, pois as querys estavam ficando enormes e o trabalho é contraproducente. É muita mais interessante responder as questões com outro software.
 
-5. **Gerar uma lista de ingredientes separados por vírgula em ordem alfabética para cada pedido de pizza da tabela `customers_orders`.  Adicione um "2x" na frente de quaisquer ingredientes relevantes.**
-
-- Ex:  "Meat Lovers: 2xBacon, Beef, ... , Salami"
-
-```sql
-
-```
-
-6. **Qual é a quantidade total de cada ingrediente usado em todas as pizzas entregues, ordenado pela mais frequente primeiro lugar?**
-
-```sql
-
-```
 ---
 
 ## Precificação e avaliações
 
+**1.  A pizza de Meat Lovers custa $12 e a de Vegetarian custa $10, e não houve cobranças por alterações. Quanto dinheiro o Pizza Runner arrecadou até agora, se não houver taxas de entrega?**
+
+```sql
+WITH tab_price AS(   
+SELECT 
+	pizza_name,
+    COUNT(co.order_id) AS qtd_pizza_entregue,
+    CASE
+    	WHEN pn.pizza_name = 'Meatlovers' THEN 12
+    	WHEN pn.pizza_name = 'Vegetarian' THEN 10
+    ELSE 0
+    END AS price_per_pizza
+FROM customer_orders_temp AS co
+LEFT JOIN pizza_runner.pizza_names AS pn
+ON co.pizza_id = pn.pizza_id
+LEFT JOIN  runner_orders_temp AS ro
+ON co.order_id = ro.order_id
+WHERE cancellation IS  NULL
+	OR cancellation NOT IN ('Restaurant Cancellation', 'Customer Cancellation')
+GROUP BY pizza_name),
+
+receita_total AS(
+SELECT
+	pizza_name,
+    qtd_pizza_entregue * price_per_pizza AS receita_pizza
+FROM tab_price)
+
+SELECT
+	sum(receita_pizza) AS receita_total
+FROM receita_total
+
+```
+
+| Receita Total |
+|--------------|
+|     $138     |
+
+
+- Essa consulta utiliza como base a resposta da questão 4 do tópico Métricas das Pizzas
 ---
+
+**2. E se houvesse uma taxa adicional de $1 para quaisquer extras de pizza? Por exemplo, adicionar queijo custa $1 a mais.**
+
+```sql
+--- tabela de preços 
+WITH price AS (
+   SELECT 
+    co.order_id,
+    co.pizza_id,
+    CASE
+      WHEN co.pizza_id = 1 THEN 12
+      WHEN co.pizza_id = 2 THEN 10
+      ELSE 0 
+    END AS price_per_pizza
+  FROM customer_orders_temp AS co
+  LEFT JOIN runner_orders_temp AS ro
+  ON co.order_id = ro.order_id
+  WHERE  ro.cancellation <> 'Customer Cancellation' AND ro.cancellation <> 'Restaurant Cancellation'
+),
+
+--- tabela de extras
+extras AS (
+  SELECT
+    co.order_id,
+    co.pizza_id,
+    CASE
+      WHEN co.extras <> '' AND ro.cancellation <> 'Customer Cancellation' AND ro.cancellation <> 'Restaurant Cancellation' THEN
+        array_length(string_to_array(co.extras, ','), 1)
+      ELSE
+        0
+    END AS num_extras
+  FROM customer_orders_temp AS co
+  LEFT JOIN runner_orders_temp AS ro
+  ON co.order_id = ro.order_id
+  WHERE ro.cancellation <> 'Customer Cancellation' AND ro.cancellation <> 'Restaurant Cancellation'
+)
+
+```
+
+Eu não consegui resolvi essa questão. Minha lógica era criar uma CTE com uma tabela com os preços tendo colunas `order_id`, `pizza_id`,  e `price_per_pizza` e uma segunda CTE com extras, onde teria a coluna `order_id`, `pizza_id`, `num_extras`. Então eu realizaria um JOIN e a partir da tabela completa poderia criar uma coluna de receita total (`price_per_pizza` + `num_extras`). Com esses valores seria possível contar os order_id e agrupar por pizza_id e somar os valores da receita.
+
+Entretanto, eu não consegui realizar o JOIN. Os resultados sempre dão valores duplicados. Aparentemente é por que esse schema não tem um valor único para cada linha e no JOIN isso causa as duplicatas na tabela.
+
+---
+
+**3. A equipe do Pizza Runner agora deseja adicionar um sistema adicional de avaliações que permita aos clientes avaliarem seus entregadores. Como você projetaria uma tabela adicional para este novo conjunto de dados? Crie um esquema para esta nova tabela e insira seus próprios dados de avaliações para cada pedido bem-sucedido de cliente, variando de 1 a 5.**
+
+```sql
+DROP TABLE IF EXISTS ratings;
+
+CREATE TABLE ratings
+	("order_id" INTEGER, 
+     "customer_id" INTEGER, 
+     "runner_id" INTEGER, 
+     "rating" INTEGER);
+
+INSERT INTO ratings
+	("order_id", "runner_id", "customer_id", "rating")
+VALUES
+	(1, 1, 101, 3),
+    (2, 1, 101, 4),
+    (3, 1, 102, 3),
+    (4, 2, 103, 2),
+    (5, 3, 104, 5),
+    (7, 2, 105, 4),
+    (8, 2, 105, 4),
+    (10, 1, 104, 5);
+
+SELECT * FROM ratings
+```
+| order_id | customer_id | runner_id | rating |
+|----------|-------------|-----------|--------|
+| 1        | 101         | 1         | 3      |
+| 2        | 101         | 1         | 4      |
+| 3        | 102         | 1         | 3      |
+| 4        | 103         | 2         | 2      |
+| 5        | 104         | 3         | 5      |
+| 7        | 105         | 2         | 4      |
+| 8        | 105         | 2         | 4      |
+| 10       | 104         | 1         | 5      |
+
+**Passos:**
+
+- Iniciei com uma cláusula DROP TABLE IF EXISTS ratings; para garantir que qualquer tabela pré-existente com o nome "ratings" seja removida antes de criar a nova tabela, evitando conflitos durante a execução do script.
+
+- Depois criei  uma tabela chamada `ratings` para armazenar as avaliações dos clientes para os entregadores em cada pedido com a função **CREATE TABLE**
+
+- A tabela possui quatro colunas: `order_id` para identificar o pedido, `customer_id` para identificar o cliente, `runner_id` para identificar o entregador, e `rating` para armazenar a avaliação dada pelo cliente (um número inteiro de 1 a 5).
+
+
+- Em seguida, inseri dados iniciais na tabela ratings representando avaliações fictícias dadas pelos clientes para os entregadores em pedidos específicos. Fiz isso com o comando **INSERT TO** e **VALUES**
+
+***3.**
+
+
+
 
 ## Perguntas adicionais
