@@ -1151,9 +1151,114 @@ SELECT * FROM ratings
 
 - Em seguida, inseri dados iniciais na tabela ratings representando avaliações fictícias dadas pelos clientes para os entregadores em pedidos específicos. Fiz isso com o comando **INSERT TO** e **VALUES**
 
-***3.**
+---
+
+**4. Usando a tabela recém-gerada, você pode juntar todas as informações para formar uma tabela que contenha as seguintes informações para entregas bem-sucedidas:**
+
+- customer_id (ID do cliente)
+- order_id (ID do pedido)
+- runner_id (ID do entregador)
+- rating (Avaliação)
+- order_time (Horário do pedido)
+- pickup_time (Horário de retirada)
+- Tempo entre o pedido e a retirada
+- Duração da entrega
+- Velocidade média
+- Número total de pizzas
 
 
 
+```sql
+SELECT
+    co.customer_id,
+    co.order_id,
+    ro.runner_id,
+    ra.rating,
+    co.order_time,
+    ro.pickup_time,
+    DATE_PART('minute', TO_TIMESTAMP(ro.pickup_time, 'YYYY-MM-DD HH24:MI:SS') - order_time) AS time_diff_minutes,
+    ro.duration,
+    ROUND((ro.distance::NUMERIC / (ro.duration::NUMERIC * 60)), 2) AS speed,
+    pizza_counts.num_pizzas
+ FROM customer_orders_temp AS co
+ LEFT JOIN runner_orders_temp AS ro
+ ON co.order_id = ro.order_id
+ LEFT JOIN ratings AS ra
+ ON co.order_id = ra.order_id
+ LEFT JOIN (
+    SELECT order_id, COUNT(DISTINCT pizza_id) AS num_pizzas
+    FROM customer_orders_temp
+    GROUP BY order_id
+ ) AS pizza_counts
+ ON co.order_id = pizza_counts.order_id
+ WHERE ro.duration <> ' '
+```
+| customer_id | order_id | runner_id | rating | order_time                | pickup_time               | time_diff_minutes | duration | speed | num_pizzas |
+|-------------|----------|-----------|--------|---------------------------|---------------------------|-------------------|----------|-------|------------|
+| 101         | 1        | 1         | 3      | 2020-01-01T18:05:02.000Z  | 2020-01-01 18:15:34       | 10                | 32       | 0.01  | 1          |
+| 101         | 2        | 1         | 4      | 2020-01-01T19:00:52.000Z  | 2020-01-01 19:10:54       | 10                | 27       | 0.01  | 1          |
+| 102         | 3        | 1         | 3      | 2020-01-02T23:51:23.000Z  | 2020-01-03 00:12:37       | 21                | 20       | 0.01  | 2          |
+| 102         | 3        | 1         | 3      | 2020-01-02T23:51:23.000Z  | 2020-01-03 00:12:37       | 21                | 20       | 0.01  | 2          |
+| 103         | 4        | 2         | 2      | 2020-01-04T13:23:46.000Z  | 2020-01-04 13:53:03       | 29                | 40       | 0.01  | 2          |
+| 103         | 4        | 2         | 2      | 2020-01-04T13:23:46.000Z  | 2020-01-04 13:53:03       | 29                | 40       | 0.01  | 2          |
+| 103         | 4        | 2         | 2      | 2020-01-04T13:23:46.000Z  | 2020-01-04 13:53:03       | 29                | 40       | 0.01  | 2          |
+| 104         | 5        | 3         | 5      | 2020-01-08T21:00:29.000Z  | 2020-01-08 21:10:57       | 10                | 15       | 0.01  | 1          |
+| 105         | 7        | 2         | 4      | 2020-01-08T21:20:29.000Z  | 2020-01-08 21:30:45       | 10                | 25       | 0.02  | 1          |
+| 102         | 8        | 2         | 4      | 2020-01-09T23:54:33.000Z  | 2020-01-10 00:15:02       | 20                | 15       | 0.03  | 1          |
+| 104         | 10       | 1         | 5      | 2020-01-11T18:34:49.000Z  | 2020-01-11 18:50:20       | 15                | 10       | 0.02  | 1          |
+| 104         | 10       | 1         | 5      | 2020-01-11T18:34:49.000Z  | 2020-01-11 18:50:20       | 15                | 10       | 0.02  | 1          |
 
-## Perguntas adicionais
+**Passos:**
+
+- Selecionei as colunas pedidas das tabelas `customer_orders_temp`, `runner_orders_temp`, `ratings`.
+
+- Utilizei a função **DATE_PART** para calcular a diferença de tempo em minutos entre `pickup_time` e `order_time`, armazenando o resultado na coluna `time_diff_minutes`.
+
+- Calculei a velocidade média de entrega, dividindo a distância pelo tempo de entrega em horas. O resultado é arredondado para duas casas decimais e armazenado na coluna speed.
+
+- Adicionei uma subconsulta que conta o número de pizzas distintas para cada pedido na `tabela customer_orders_temp` e junta esse resultado à consulta principal usando **LEFT JOIN**, resultando na coluna `num_pizzas`.
+
+---
+
+**5. Se uma pizza Meat Lovers custa $12 e uma Vegetariana custa $10, com preços fixos e sem custo adicional para extras, e cada entregador recebe $0,30 por quilômetro percorrido, quanto dinheiro a Pizza Runner tem sobrando após essas entregas?**
+
+```sql 
+WITH price AS (
+  SELECT
+      co.customer_id,
+      co.order_id,
+      co.pizza_id,
+      ro.runner_id,
+      ra.rating,
+      CASE 
+          WHEN pizza_id = 1 THEN 12
+          ELSE 10
+      END AS price,    
+      co.order_time,
+      ro.pickup_time,
+      DATE_PART('minute', TO_TIMESTAMP(ro.pickup_time, 'YYYY-MM-DD HH24:MI:SS') - order_time) AS time_diff_minutes,
+      ro.duration,
+      ROUND((ro.distance::NUMERIC / (ro.duration::NUMERIC * 60)), 2) AS speed,
+  	  ro.distance	
+   FROM customer_orders_temp AS co
+   LEFT JOIN runner_orders_temp AS ro
+   ON co.order_id = ro.order_id
+   LEFT JOIN ratings AS ra
+   ON co.order_id = ra.order_id
+   WHERE ro.duration <> ' '   
+)
+
+SELECT
+SUM(price - 0.30 * distance::NUMERIC)  AS receita_total
+FROM price
+```
+
+ | receita_total |
+|---------|
+| 73.380 |
+
+**Passos:**
+
+- Eu transformei a tabela da questão anterior em uma CTE e adicionei uma coluna de preços com a função **CASE**.
+
+- Depois calculei a receita total somando o resultado da diferença entre o que o entregador recebe (0.30 * distance) e o preço total da pizza.
