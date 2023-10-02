@@ -15,7 +15,6 @@
     - [Experiência do usuário e do entregador](#experiência-do-usuário-e-do-entregador)
     - [Otimização dos igredientes utilizados](#otimização-dos-igredientes-utilizados)
     - [Precificação e avaliações](#precificação-e-avaliações)
-    - [Perguntas adicionais](#perguntas-adicionais)
 
 # Introdução
 Com o objetivo de expandir sua pizzaria, Danny adotou uma abordagem inovadora ao lançar o Pizza Runner. Nesse empreendimento, ele recrutou uma equipe de entregadores para levar pizzas frescas diretamente aos clientes e também contratou desenvolvedores para criar um aplicativo móvel, permitindo aos clientes fazerem seus pedidos de forma conveniente e eficiente.
